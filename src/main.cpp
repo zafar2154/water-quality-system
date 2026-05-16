@@ -1,21 +1,27 @@
 #include <Arduino.h>
-#include "water_temp.h"
+#include "turbidity_sensor.h"
 
-WaterTemp suhuAir(4); // Pin data sensor DS18B20
+TurbiditySensor kekeruhanAir(34); // Pin analog untuk sensor turbidity
 
 void setup()
 {
   Serial.begin(115200);
-  suhuAir.begin();
+  kekeruhanAir.begin();
 }
 
 void loop()
 {
-  float suhuSekarang = suhuAir.readTemperature();
-  if (suhuSekarang != -127.0) { // Cek apakah pembacaan suhu berhasil
-    Serial.print("Suhu Air: ");
-    Serial.print(suhuSekarang);
-    Serial.println(" ºC");
-  }
-  delay(2000); // Baca suhu setiap 2 detik
+  // 2. Baca Kekeruhan
+  float teganganKeruh = kekeruhanAir.readVoltage();
+  float nilaiNTU = kekeruhanAir.readNTU();
+
+  Serial.print("Voltase ADC : ");
+  Serial.print(teganganKeruh);
+  Serial.println(" V");
+
+  Serial.print("Kekeruhan   : ");
+  Serial.print(nilaiNTU);
+  Serial.println(" NTU");
+
+  delay(2000); // Tunggu 2 detik sebelum membaca lagi
 }
