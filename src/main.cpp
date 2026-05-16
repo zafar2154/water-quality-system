@@ -1,27 +1,21 @@
 #include <Arduino.h>
-#include "turbidity_sensor.h"
+#include "tds_sensor.h"
 
-TurbiditySensor kekeruhanAir(34); // Pin analog untuk sensor turbidity
-
+TDSSensor tdsSensor(35); // Pin analog untuk sensor TDS
+float suhuSekarang = 25.0; // Asumsi suhu standar 25 derajat Celcius untuk kompensasi TDS
 void setup()
 {
   Serial.begin(115200);
-  kekeruhanAir.begin();
+  tdsSensor.begin();
 }
 
 void loop()
 {
-  // 2. Baca Kekeruhan
-  float teganganKeruh = kekeruhanAir.readVoltage();
-  float nilaiNTU = kekeruhanAir.readNTU();
+  // 2. Baca TDS
+float nilaiTDS = tdsSensor.readTDS(suhuSekarang);
+  Serial.print("Nilai TDS : ");
+  Serial.print(nilaiTDS);
+  Serial.println(" ppm");
 
-  Serial.print("Voltase ADC : ");
-  Serial.print(teganganKeruh);
-  Serial.println(" V");
-
-  Serial.print("Kekeruhan   : ");
-  Serial.print(nilaiNTU);
-  Serial.println(" NTU");
-
-  delay(2000); // Tunggu 2 detik sebelum membaca lagi
+  delay(1000); // Tunggu 2 detik sebelum membaca lagi
 }
