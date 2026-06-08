@@ -1,53 +1,56 @@
 #include <Arduino.h>
-#include "SDManager.h"
+#include "ADS.h"       // Library ADS1115 buatan kita sebelumnya
+#include "TDSSensor.h" // Library TDS OOP buatan kita
 
-#define CS_PIN 5
-SDManager mySD(CS_PIN);
+// Inisialisasi Objek (Instansiasi)
+ADS modulADS;
+TDSSensor sensorTDS;
 
 void setup()
 {
   Serial.begin(115200);
-  delay(2000);
 
-  if (mySD.begin())
+  if (!modulADS.begin())
   {
-    Serial.println("SD Card OK!");
-    Serial.println("Silakan ketik sesuatu di Serial Monitor lalu tekan Enter.");
+    Serial.println("Gagal menemukan ADS1115! Cek kabel I2C.");
+    while (1)
+      ;
   }
-  else
-  {
-    Serial.println("Gagal membaca SD Card.");
-  }
+
+  Serial.println("Sistem Siap!");
 }
 
 void loop()
 {
-  // Mengecek apakah ada data yang dikirim dari Serial Monitor
-  if (Serial.available() > 0)
-  {
+  // 1. Baca tegangan dari ADS1115 (Misal sensor TDS dicolok ke Channel A1)
+  float voltTDS = modulADS.readVoltage(1);
 
-    // Membaca teks sampai kamu menekan tombol Enter (\n)
-    String inputUser = Serial.readStringUntil('\n');
+  // 2. Baca suhu air aktual (Nanti diganti dengan kode pembacaan DS18B20)
+  float suhuAirAktual = 31.0;
 
-    // Membersihkan karakter spasi atau enter berlebih di awal/akhir teks
-    inputUser.trim();
+  // 3. Masukkan data suhu ke dalam objek TDS (Setter)
+  sensorTDS.setTemperature(suhuAirAktual);
 
-    // Pastikan yang dikirim bukan teks kosong
-    if (inputUser.length() > 0)
-    {
-      Serial.print("Menyimpan ke SD Card: ");
-      Serial.println(inputUser);
+  // 4. Perintahkan objek TDS untuk memproses perhitungan dari tegangan (Update)
+  sensorTDS.update(voltTDS);
 
-      // Simpan teks dari Serial Monitor ke dalam file "catatan_serial.txt"
-      // Ingat: .c_str() digunakan untuk mengubah String menjadi const char*
-      if (mySD.appendText("/catatan_serial.txt", inputUser.c_str()))
-      {
-        Serial.println("-> Berhasil disimpan!\n");
-      }
-      else
-      {
-        Serial.println("-> Gagal menyimpan!\n");
-      }
-    }
-  }
+  // 5. Ambil hasil perhitungan akhir (Getter)
+  float nilaiPPM = sensorTDS.getTdsValue();
+
+  // ==========================================
+  // Tampilkan ke Serial Monitor
+  // ==========================================
+  Serial.print("Tegangan ADS : ");
+  Serial.print(voltTDS, 3); // Cetak 3 angka di belakang koma
+  Serial.print(" V  |  ");
+
+  Serial.print("Suhu Air : ");
+  Serial.print(suhuAirAktual, 1);
+  Serial.print(" °C  |  ");
+
+  Serial.print("Kualitas TDS : ");
+  Serial.print(nilaiPPM, 0); // TDS biasanya dicetak tanpa angka desimal
+  Serial.println(" PPM");
+
+  delay(1500);
 }
