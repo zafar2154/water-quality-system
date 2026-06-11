@@ -409,6 +409,38 @@ void handleCalibration(const String &input)
         }
         break;
 
+    // ══════════════════════════════════════════════════════════════
+    //  SET WAKTU RTC
+    // ══════════════════════════════════════════════════════════════
+
+    case CalState::SET_RTC_TIME:
+        if (input.length() > 0)
+        {
+            // Parse format: YYYY MM DD HH MM SS
+            int yr, mo, dy, hr, mn, sc;
+            int parsed = sscanf(input.c_str(), "%d %d %d %d %d %d",
+                                &yr, &mo, &dy, &hr, &mn, &sc);
+
+            if (parsed == 6 && yr >= 2000 && yr <= 2099 &&
+                mo >= 1 && mo <= 12 && dy >= 1 && dy <= 31 &&
+                hr >= 0 && hr <= 23 && mn >= 0 && mn <= 59 &&
+                sc >= 0 && sc <= 59)
+            {
+                rtc.setDateTime(yr, mo, dy, hr, mn, sc);
+                Serial.println(F("  ✓ Waktu RTC berhasil di-set!"));
+                Serial.printf("  Waktu sekarang: %s\n", rtc.getTimestamp().c_str());
+            }
+            else
+            {
+                Serial.println(F("  ✗ Format salah! Gunakan: YYYY MM DD HH MM SS"));
+                Serial.println(F("  Contoh: 2026 06 11 18 30 00"));
+            }
+
+            printMenu();
+            state = CalState::NORMAL;
+        }
+        break;
+
     default:
         break;
     }
