@@ -1,65 +1,23 @@
 #include "turbidity_sensor.h"
 
-TurbiditySensor::TurbiditySensor(uint8_t pin)
+void TurbiditySensor::setCalibration(const TurbidityCalData &cal)
 {
-    analogPin = pin;
+    _cal = cal;
+    Serial.printf("[Turbidity] Kalibrasi di-set: slope=%.4f, intercept=%.4f\n",
+                  _cal.slope, _cal.intercept);
 }
 
-void TurbiditySensor::begin()
+void TurbiditySensor::update(float voltage)
 {
-    pinMode(analogPin, INPUT);
-    Serial.println("Turbidity Sensor siap digunakan.");
-}
+    _voltage = voltage;
 
-float TurbiditySensor::readVoltage()
-{
-    // 1. Buat variabel untuk menampung total jumlah pembacaan
-    long totalADC = 0;
-    int jumlahSampel = 100; // Kita ambil 100 sampel data
-
-    // 2. Lakukan perulangan cepat untuk membaca sensor 100 kali
-    for (int i = 0; i < jumlahSampel; i++)
+    // Guard: tegangan tidak valid (ADS error atau sensor tidak terpasang)
+    if (voltage < -900.0f)
     {
-        totalADC += analogRead(analogPin);
-        delay(2); // Beri jeda 2 milidetik agar ADC ESP32 bisa "bernapas"
+        _ntu = -1.0f; // indikator error
+        return;
     }
 
-    // 3. Hitung rata-rata ADC-nya
-    float averageADC = (float)totalADC / jumlahSampel;
-
-    // 4. Baru konversi ke Voltase
-    float voltage = averageADC * (3.3 / 4095.0);
-    return voltage;
-}
-
-float TurbiditySensor::readNTU()
-{
-    float voltage = readVoltage();
-
-    // Rumus estimasi kasar konversi Tegangan ke NTU
-    // Air jernih = Voltase tinggi (~3.0V - 3.3V) = NTU mendekati 0
-    // Air keruh = Voltase rendah (< 2.5V) = NTU tinggi
-    float airJernihVoltage = 1.35; // sesuaikan dengan kondisi air jernih di lingkungan Anda
-    float airKeruhVoltage = 0;     // sesuaikan dengan kondisi air keruh di lingkungan Anda
-
-    // Batasi tegangan agar tidak melebihi rentang kalibrasi kita
-    if (voltage > airJernihVoltage)
-    {
-        voltage = airJernihVoltage;
-    }
-    else if (voltage < airKeruhVoltage)
-    {
-        voltage = airKeruhVoltage;
-    }
-
-    // Terapkan rumus regresi linier: y = -2222.22x + 3000
-    float ntu = (-2222.22 * voltage) + 3000.0;
-
-    // Pastikan NTU tidak pernah bernilai negatif akibat pembulatan
-    if (ntu < 0)
-    {
-        ntu = 0;
-    }
-
-    return ntu;
+    // Terapkan kalibrasi linear: NTU = slope * V + intercept
+    _ntu = CalibrationManager::applyTurbidity(_voltage, _cal);
 }

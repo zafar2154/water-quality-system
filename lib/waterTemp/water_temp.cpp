@@ -14,7 +14,7 @@ float WaterTemp::readTemperature() {
     float temperatureC = sensors.getTempCByIndex(0);
     
     if (temperatureC == DEVICE_DISCONNECTED_C) {
-        Serial.println("Error: Sensor tidak terdeteksi! Cek kabel dan resistor 4.7k.");
+        Serial.println("Error: Sensor water temperature tidak terdeteksi! Cek kabel dan resistor 4.7k.");
         return -127.0; // Return -127.0 untuk menandakan error
     } 
     return temperatureC;

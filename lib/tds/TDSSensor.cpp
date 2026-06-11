@@ -1,56 +1,50 @@
 #include "TDSSensor.h"
 
-// Constructor: Set nilai awal saat perangkat baru dinyalakan
 TDSSensor::TDSSensor()
 {
-    _temperature = 25.0; // Suhu default standar kalibrasi
-    _tdsValue = 0.0;
-    _kValue = 1.0; // Nilai kalibrasi default (bisa disesuaikan)
+    // Semua member sudah di-init di header (C++11 in-class initializer)
 }
 
-// Implementasi Setter Suhu
-void TDSSensor::setTemperature(float temp)
+void TDSSensor::setCalibration(const TdsCalData &cal)
 {
-    _temperature = temp;
+    _cal = cal;
+    Serial.printf("[TDS] Kalibrasi di-set: kValue=%.4f\n", _cal.kValue);
 }
 
-// Implementasi Setter K-Value
-void TDSSensor::setKValue(float k)
+void TDSSensor::setTemperature(float tempC)
 {
-    _kValue = k;
+    _temperature = tempC;
 }
 
-// Implementasi Update Rumus DFRobot
 void TDSSensor::update(float voltage)
 {
-    // Filter Deadband untuk Noise di Udara
-    // Jika tegangan di bawah 0.1 Volt, anggap probe sedang tidak di air
-    if (voltage < 0.1)
+    _voltage = voltage;
+
+    // Guard: tegangan tidak valid
+    if (voltage < -900.0f)
     {
-        _tdsValue = 0.0;
-        return; // Hentikan kalkulasi di sini dan langsung keluar dari fungsi
+        _tdsValue = -1.0f;
+        return;
     }
 
-    // Jika tegangan normal (> 0.1V), lanjutkan kalkulasi
-    // Kompensasi suhu: TDS mentah dibagi dengan faktor kompensasi berdasarkan suhu aktual (vcomp = V / (1 + 0.02 * (T - 25)))
-    float compensationCoefficient = 1.0 + 0.02 * (_temperature - 25.0);
-    float compensationVoltage = voltage / compensationCoefficient;
-
-    // Hitung TDS Mentah (133.42 * V^3 - 255.86 * V^2 + 857.39 * V) * 0.5
-    float rawTds = (133.42 * compensationVoltage * compensationVoltage * compensationVoltage - 255.86 * compensationVoltage * compensationVoltage + 857.39 * compensationVoltage) * 0.5;
-
-    // Kalibrasi hasil akhir dengan K-Value
-    _tdsValue = rawTds * _kValue;
-
-    // Pastikan nilai TDS tidak negatif (karena bisa terjadi noise atau kesalahan pembacaan)
-    if (_tdsValue < 0)
+    // Deadband: jika tegangan di bawah 0.1V, probe di udara / tidak terhubung
+    if (voltage < 0.1f)
     {
-        _tdsValue = 0;
+        _tdsValue = 0.0f;
+        return;
     }
-}
 
-// Implementasi Getter Nilai TDS
-float TDSSensor::getTdsValue()
-{
-    return _tdsValue;
+    // ── Kompensasi suhu (formula DFRobot) ─────────────────────────
+    // Tegangan dikoreksi ke kondisi 25°C sebelum dihitung PPM
+    float compensationCoeff   = 1.0f + 0.02f * (_temperature - 25.0f);
+    float compensationVoltage = voltage / compensationCoeff;
+    float Vc                  = compensationVoltage;
+
+    // ── Hitung PPM mentah (polinomial orde-3 dari DFRobot) ────────
+    float rawPpm = (133.42f * Vc * Vc * Vc
+                  - 255.86f * Vc * Vc
+                  + 857.39f * Vc) * 0.5f;
+
+    // ── Terapkan kalibrasi K-Value ─────────────────────────────────
+    _tdsValue = CalibrationManager::applyTds(rawPpm, _cal);
 }
