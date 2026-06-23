@@ -5,9 +5,9 @@
  * ════════════════════════════════════════════════════════════════════
  *
  *  Sensor yang terhubung ke ADS1115 (I2C 0x48):
- *    A0 → Turbidity Sensor (analog)
+ *    A0 → pH Sensor PH-4502C (analog)
  *    A1 → TDS Sensor       (analog)
- *    A2 → pH Sensor PH-4502C (analog)
+ *    A2 → Turbidity Sensor (analog)
  *
  *  Modul I2C lain:
  *    DS3231 RTC (I2C 0x68) — Waktu & suhu udara ambient
@@ -38,10 +38,10 @@
 constexpr uint8_t PIN_DS18B20 = 4; // GPIO4 untuk sensor suhu DS18B20
 
 // ── Konfigurasi Interval Pembacaan ───────────────────────────────
-constexpr uint32_t READ_INTERVAL_MS = 2000; // baca setiap 2 detik
+constexpr uint32_t READ_INTERVAL_MS = 500; // baca setiap 2 detik
 
 // ── Interval live voltage saat kalibrasi ──────────────────────────
-constexpr uint32_t CAL_LIVE_INTERVAL_MS = 1000; // tampilkan tegangan tiap 1 detik
+constexpr uint32_t CAL_LIVE_INTERVAL_MS = 500; // tampilkan tegangan tiap 1 detik
 
 // ── Jumlah Sampel ADS1115 ─────────────────────────────────────────
 constexpr uint8_t SAMPLES_AVG = 10;   // untuk TDS (rata-rata)
@@ -52,9 +52,9 @@ constexpr uint8_t SAMPLES_MEDIAN = 9; // untuk Turbidity & pH (median, lebih rob
 // ════════════════════════════════════════════════════════════════════
 
 ADS modulADS;                      // ADS1115 (I2C 0x48)
-TurbiditySensor sensorTurbidity;   // Turbidity  → A0
+TurbiditySensor sensorTurbidity;   // Turbidity  → A2
 TDSSensor sensorTDS;               // TDS        → A1
-PHSensor sensorPH;                 // pH         → A2
+PHSensor sensorPH;                 // pH         → A0
 WaterTemp sensorSuhu(PIN_DS18B20); // DS18B20 → GPIO4
 RTC_DS3231_Wrapper rtc;            // DS3231 RTC (I2C 0x68) — waktu + suhu udara
 CalibrationManager calMgr;         // Manajemen kalibrasi + NVS Flash
@@ -159,12 +159,12 @@ void updateLiveVoltage()
 
     switch (state)
     {
-    // ── Turbidity: tampilkan tegangan A0 ──────────────────────────
+    // ── Turbidity: tampilkan tegangan A2 ──────────────────────────
     case CalState::CAL_TURB_WAIT_CLEAR:
     case CalState::CAL_TURB_WAIT_MURKY:
     {
         float v = modulADS.readVoltage(ADS_Channel::TURBIDITY);
-        Serial.printf("  📡 [LIVE] Turbidity (A0): %.4f V  |  Ketik 'ok' jika stabil\n", v);
+        Serial.printf("  📡 [LIVE] Turbidity (A2): %.4f V  |  Ketik 'ok' jika stabil\n", v);
         break;
     }
 
@@ -176,13 +176,13 @@ void updateLiveVoltage()
         break;
     }
 
-    // ── pH: tampilkan tegangan A2 ─────────────────────────────────
+    // ── pH: tampilkan tegangan A0 ─────────────────────────────────
     case CalState::CAL_PH_WAIT_BUF1:
     case CalState::CAL_PH_WAIT_BUF2:
     case CalState::CAL_PH_WAIT_BUF3:
     {
         float v = modulADS.readVoltage(ADS_Channel::PH);
-        Serial.printf("  📡 [LIVE] pH (A2): %.4f V  |  Ketik 'ok' jika stabil\n", v);
+        Serial.printf("  📡 [LIVE] pH (A0): %.4f V  |  Ketik 'ok' jika stabil\n", v);
         break;
     }
 
@@ -598,9 +598,9 @@ void loop()
             {
                 // Baca tegangan mentah semua channel sekali
                 Serial.println(F("\n  ── Tegangan Mentah Semua Channel ──"));
-                Serial.printf("  A0 (Turbidity): %.4f V\n", modulADS.readVoltage(ADS_Channel::TURBIDITY));
+                Serial.printf("  A0 (pH)       : %.4f V\n", modulADS.readVoltage(ADS_Channel::PH));
                 Serial.printf("  A1 (TDS)      : %.4f V\n", modulADS.readVoltage(ADS_Channel::TDS));
-                Serial.printf("  A2 (pH)       : %.4f V\n", modulADS.readVoltage(ADS_Channel::PH));
+                Serial.printf("  A2 (Turbidity): %.4f V\n", modulADS.readVoltage(ADS_Channel::TURBIDITY));
                 Serial.printf("  A3 (Spare)    : %.4f V\n", modulADS.readVoltage(ADS_Channel::SPARE));
                 Serial.println();
             }
