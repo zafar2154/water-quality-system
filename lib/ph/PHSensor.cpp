@@ -15,7 +15,6 @@ void PHSensor::setTemperature(float tempC)
 float PHSensor::_temperatureFactor() const
 {
     // Persamaan Nernst: slope elektroda berubah linear dengan suhu Kelvin
-    // Slope_T = Slope_25 * (T_aktual_K / T_kalibrasi_K)
     // T_kalibrasi = 25°C = 298.15 K
     const float T_cal = 298.15f;
     float T_actual    = _temperature + 273.15f;
@@ -33,20 +32,18 @@ void PHSensor::update(float voltage)
         return;
     }
 
-    // Hitung pH mentah menggunakan koefisien kalibrasi polinomial
-    float phRaw = CalibrationManager::applyPh(_voltage, _cal);
+    // Hitung pH mentah: pH = a*V² + b*V + c
+    float phRaw = _cal.a * voltage * voltage + _cal.b * voltage + _cal.c;
+
+    // Clamp ke rentang fisik pH yang valid
+    if (phRaw < 0.0f)  phRaw = 0.0f;
+    if (phRaw > 14.0f) phRaw = 14.0f;
 
     // ── Kompensasi suhu elektroda (Nernst) ────────────────────────
-    // pH bergeser dari pH 7 (netral) proporsional terhadap suhu.
-    // Koreksi: ph_terkoreksi = 7 + (phRaw - 7) / faktor_suhu
-    //
-    // Catatan: PH-4502C sudah punya kompensasi suhu hardware via NTC.
-    //          Kompensasi software ini opsional dan lebih akurat
-    //          jika nilai suhu aktual diketahui persis.
     float factor = _temperatureFactor();
     _phValue = 7.0f + (phRaw - 7.0f) / factor;
 
-    // Clamp ke rentang fisik yang valid
+    // Clamp final
     if (_phValue < 0.0f)  _phValue = 0.0f;
     if (_phValue > 14.0f) _phValue = 14.0f;
 }

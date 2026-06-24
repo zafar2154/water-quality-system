@@ -3,8 +3,8 @@
 void TurbiditySensor::setCalibration(const TurbidityCalData &cal)
 {
     _cal = cal;
-    Serial.printf("[Turbidity] Kalibrasi di-set: slope=%.4f, intercept=%.4f\n",
-                  _cal.slope, _cal.intercept);
+    Serial.printf("[Turbidity] Kalibrasi di-set: a=%.6f, b=%.6f, c=%.6f\n",
+                  _cal.a, _cal.b, _cal.c);
 }
 
 void TurbiditySensor::update(float voltage)
@@ -18,6 +18,10 @@ void TurbiditySensor::update(float voltage)
         return;
     }
 
-    // Terapkan kalibrasi linear: NTU = slope * V + intercept
-    _ntu = CalibrationManager::applyTurbidity(_voltage, _cal);
+    // Terapkan kalibrasi polinomial orde-2: NTU = a*V² + b*V + c
+    _ntu = _cal.a * voltage * voltage + _cal.b * voltage + _cal.c;
+
+    // NTU tidak bisa negatif
+    if (_ntu < 0.0f)
+        _ntu = 0.0f;
 }

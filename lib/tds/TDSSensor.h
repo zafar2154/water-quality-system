@@ -1,6 +1,5 @@
 #pragma once
 #include <Arduino.h>
-#include "CalibrationManager.h"
 
 /**
  * TDSSensor
@@ -8,27 +7,46 @@
  * Mengkonversi tegangan dari ADS1115 ke nilai TDS dalam PPM,
  * dengan kompensasi suhu dan koreksi kalibrasi K-Value.
  *
- * Alur pakai:
- *   TDSSensor tds;
- *   tds.setCalibration(cal);           // muat dari Flash
- *   tds.setTemperature(suhu);          // dari DS18B20
- *   tds.update(ads.readVoltageAvg(ADS_Channel::TDS));
- *   float ppm = tds.getTdsValue();
- *
  * Formula (DFRobot):
  *   Vcomp  = V / (1 + 0.02 * (T - 25))
  *   PPMraw = (133.42*Vcomp³ - 255.86*Vcomp² + 857.39*Vcomp) * 0.5
  *   PPMfin = PPMraw * kValue
+ *
+ * ╔══════════════════════════════════════════════════════════════════╗
+ * ║  KALIBRASI MANUAL                                               ║
+ * ║  Ubah nilai kValue di struct TdsCalData setelah kalibrasi.       ║
+ * ║                                                                  ║
+ * ║  Cara menghitung:                                                ║
+ * ║  1. Celupkan probe di larutan referensi (misal 500 PPM)          ║
+ * ║  2. Baca PPM mentah yang ditampilkan (misal 480 PPM)             ║
+ * ║  3. kValue = PPM_referensi / PPM_mentah = 500 / 480 = 1.0417    ║
+ * ╚══════════════════════════════════════════════════════════════════╝
+ *
+ * Alur pakai:
+ *   TDSSensor tds;
+ *   tds.setTemperature(suhu);          // dari DS18B20
+ *   tds.update(ads.readVoltageAvg(ADS_Channel::TDS));
+ *   float ppm = tds.getTdsValue();
  */
+
+// ── Struct Kalibrasi ──────────────────────────────────────────────
+struct TdsCalData
+{
+    // ┌──────────────────────────────────────────────────────────┐
+    // │  EDIT NILAI DI BAWAH INI SETELAH KALIBRASI              │
+    // └──────────────────────────────────────────────────────────┘
+    float kValue = 1.0f;  // faktor koreksi (1.0 = tanpa koreksi)
+};
+
+// ── Class Sensor ──────────────────────────────────────────────────
 class TDSSensor
 {
 public:
-    TDSSensor();
+    TDSSensor() = default;
 
     // ── Kalibrasi ─────────────────────────────────────────────────
     void       setCalibration(const TdsCalData &cal);
     TdsCalData getCalibration() const { return _cal; }
-    bool       isCalibrated()   const { return _cal.valid; }
 
     // ── Input ─────────────────────────────────────────────────────
     /**

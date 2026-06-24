@@ -1,10 +1,5 @@
 #include "TDSSensor.h"
 
-TDSSensor::TDSSensor()
-{
-    // Semua member sudah di-init di header (C++11 in-class initializer)
-}
-
 void TDSSensor::setCalibration(const TdsCalData &cal)
 {
     _cal = cal;
@@ -46,5 +41,8 @@ void TDSSensor::update(float voltage)
                   + 857.39f * Vc) * 0.5f;
 
     // ── Terapkan kalibrasi K-Value ─────────────────────────────────
-    _tdsValue = CalibrationManager::applyTds(rawPpm, _cal);
+    _tdsValue = rawPpm * _cal.kValue;
+
+    if (_tdsValue < 0.0f)
+        _tdsValue = 0.0f;
 }
