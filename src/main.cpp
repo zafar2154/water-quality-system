@@ -34,6 +34,7 @@
 #include "PHSensor.h"
 #include "water_temp.h"
 #include "RTC_DS3231_Wrapper.h"
+#include "FuzzyWaterQuality.h"
 
 // ── Konfigurasi Pin ───────────────────────────────────────────────
 constexpr uint8_t PIN_DS18B20 = 4; // GPIO4 untuk sensor suhu DS18B20
@@ -58,6 +59,7 @@ TDSSensor sensorTDS;               // TDS        → A1
 PHSensor sensorPH;                 // pH         → A0
 WaterTemp sensorSuhu(PIN_DS18B20); // DS18B20 → GPIO4
 RTC_DS3231_Wrapper rtc;            // DS3231 RTC (I2C 0x68) — waktu + suhu udara
+FuzzyWaterQuality fuzzy;           // Fuzzy Logic Mamdani — kualitas air
 
 // ════════════════════════════════════════════════════════════════════
 //  State untuk input Serial
@@ -237,8 +239,7 @@ void loop()
         float vTurb = modulADS.readVoltage(ADS_Channel::TURBIDITY);
         float vSpare = modulADS.readVoltage(ADS_Channel::SPARE);
 
-        Serial.printf("  pH=%.4fV  |  TDS=%.4fV  |  Turb=%.4fV  |  Spare=%.4fV\n",
-                      vPh, vTds, vTurb, vSpare);
+        Serial.printf("  Turb=%.4fV \n", vTurb);
     }
 
     // ── Pembacaan sensor periodik ─────────────────────────────────
@@ -273,7 +274,10 @@ void loop()
         float ppm = sensorTDS.getTdsValue();
         float ph = sensorPH.getPhValue();
 
-        // 6. Tampilkan hasil dengan timestamp
+        // 6. Evaluasi kualitas air dengan Fuzzy Logic
+        FuzzyResult wq = fuzzy.evaluate(ph, ppm, ntu, suhuAir, suhuUdara);
+
+        // 7. Tampilkan hasil dengan timestamp
         printSeparator();
 
         // Timestamp dari RTC
@@ -285,15 +289,24 @@ void loop()
                           rtc.getTimestamp().c_str());
         }
 
-        Serial.printf("  Suhu Air   : %.1f °C  (DS18B20)\n", suhuAir);
+        Serial.printf("  Suhu Air   : %.1f \xb0"
+                      "C  (DS18B20)\n",
+                      suhuAir);
 
         if (suhuUdara > -900.0f)
-            Serial.printf("  Suhu Udara : %.2f °C  (DS3231)\n", suhuUdara);
+            Serial.printf("  Suhu Udara : %.2f \xb0"
+                          "C  (DS3231, delta Air-Udara=%+.1f\xb0"
+                          "C)\n",
+                          suhuUdara, suhuAir - suhuUdara);
 
         Serial.printf("  Turbidity  : %.1f NTU  (V=%.4fV)\n", ntu, vTurb);
         Serial.printf("  TDS        : %.0f PPM  (V=%.4fV)\n", ppm, vTds);
         Serial.printf("  pH         : %.2f (%s)  (V=%.4fV)\n", ph,
                       sensorPH.getPhCategory(), vPh);
+
+        // Hasil Fuzzy Logic
+        printSeparator('-', 34);
+        Serial.printf("  Kualitas Air: %.1f / 100 [%s]\n", wq.wqi, wq.category);
         printSeparator();
     }
 }
