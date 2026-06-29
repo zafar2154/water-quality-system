@@ -32,9 +32,9 @@ struct TurbidityCalData
     // │  EDIT NILAI DI BAWAH INI SETELAH KALIBRASI              │
     // │  NTU = a*V² + b*V + c                                   │
     // └──────────────────────────────────────────────────────────┘
-    float a = 0.0f;         // koefisien V² (jika 0, rumus jadi linear)
-    float b = -2222.22f;    // koefisien V
-    float c = 3000.00f;     // konstanta
+    float a = 775.45f;         // koefisien V² (jika 0, rumus jadi linear)
+    float b = -5175.2f;    // koefisien V
+    float c = 5375.00f;     // konstanta
 };
 
 // ── Class Sensor ──────────────────────────────────────────────────

@@ -35,6 +35,7 @@
 #include "water_temp.h"
 #include "RTC_DS3231_Wrapper.h"
 #include "FuzzyWaterQuality.h"
+#include <LiquidCrystal_I2C.h>
 
 // ── Konfigurasi Pin ───────────────────────────────────────────────
 constexpr uint8_t PIN_DS18B20 = 4; // GPIO4 untuk sensor suhu DS18B20
@@ -53,13 +54,14 @@ constexpr uint8_t SAMPLES_MEDIAN = 9; // untuk Turbidity & pH (median, lebih rob
 //  Instansiasi Objek
 // ════════════════════════════════════════════════════════════════════
 
-ADS modulADS;                      // ADS1115 (I2C 0x48)
-TurbiditySensor sensorTurbidity;   // Turbidity  → A2
-TDSSensor sensorTDS;               // TDS        → A1
-PHSensor sensorPH;                 // pH         → A0
-WaterTemp sensorSuhu(PIN_DS18B20); // DS18B20 → GPIO4
-RTC_DS3231_Wrapper rtc;            // DS3231 RTC (I2C 0x68) — waktu + suhu udara
-FuzzyWaterQuality fuzzy;           // Fuzzy Logic Mamdani — kualitas air
+ADS modulADS;                       // ADS1115 (I2C 0x48)
+TurbiditySensor sensorTurbidity;    // Turbidity  → A2
+TDSSensor sensorTDS;                // TDS        → A1
+PHSensor sensorPH;                  // pH         → A0
+WaterTemp sensorSuhu(PIN_DS18B20);  // DS18B20 → GPIO4
+RTC_DS3231_Wrapper rtc;             // DS3231 RTC (I2C 0x68) — waktu + suhu udara
+FuzzyWaterQuality fuzzy;            // Fuzzy Logic Mamdani — kualitas air
+LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD 16x2 I2C (Address 0x27)
 
 // ════════════════════════════════════════════════════════════════════
 //  State untuk input Serial
@@ -118,6 +120,14 @@ void setup()
     Serial.println(F("  Water Quality Monitoring System"));
     Serial.println(F("  ESP32 + ADS1115 + DS3231 | v3.0"));
     printSeparator('=');
+
+    // ── Inisialisasi LCD ──────────────────────────────────────────
+    lcd.init();
+    lcd.backlight();
+    lcd.setCursor(0, 0);
+    lcd.print("Water Quality");
+    lcd.setCursor(0, 1);
+    lcd.print("System v3.0");
 
     // ── Inisialisasi ADS1115 ──────────────────────────────────────
     if (!modulADS.begin())
@@ -293,20 +303,27 @@ void loop()
                       "C  (DS18B20)\n",
                       suhuAir);
 
-        if (suhuUdara > -900.0f)
-            Serial.printf("  Suhu Udara : %.2f \xb0"
-                          "C  (DS3231, delta Air-Udara=%+.1f\xb0"
-                          "C)\n",
-                          suhuUdara, suhuAir - suhuUdara);
+        // if (suhuUdara > -900.0f)
+        //     Serial.printf("  Suhu Udara : %.2f \xb0"
+        //                   "C  (DS3231, delta Air-Udara=%+.1f\xb0"
+        //                   "C)\n",
+        //                   suhuUdara, suhuAir - suhuUdara);
 
-        Serial.printf("  Turbidity  : %.1f NTU  (V=%.4fV)\n", ntu, vTurb);
+        // Serial.printf("  Turbidity  : %.1f NTU  (V=%.4fV)\n", ntu, vTurb);
         Serial.printf("  TDS        : %.0f PPM  (V=%.4fV)\n", ppm, vTds);
-        Serial.printf("  pH         : %.2f (%s)  (V=%.4fV)\n", ph,
-                      sensorPH.getPhCategory(), vPh);
+        // Serial.printf("  pH         : %.2f (%s)  (V=%.4fV)\n", ph,
+        //               sensorPH.getPhCategory(), vPh);
 
         // Hasil Fuzzy Logic
-        printSeparator('-', 34);
-        Serial.printf("  Kualitas Air: %.1f / 100 [%s]\n", wq.wqi, wq.category);
-        printSeparator();
+        // printSeparator('-', 34);
+        // Serial.printf("  Kualitas Air: %.1f / 100 [%s]\n", wq.wqi, wq.category);
+        // printSeparator();
+
+        // 8. Tampilkan ke LCD 16x2
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.printf("temp = %.2f", suhuAir);
+        lcd.setCursor(0, 1);
+        lcd.printf("ppm = %.1f v=%.3f", ppm, vTds);
     }
 }
