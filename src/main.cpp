@@ -303,16 +303,16 @@ void loop()
                       "C  (DS18B20)\n",
                       suhuAir);
 
-        // if (suhuUdara > -900.0f)
-        //     Serial.printf("  Suhu Udara : %.2f \xb0"
-        //                   "C  (DS3231, delta Air-Udara=%+.1f\xb0"
-        //                   "C)\n",
-        //                   suhuUdara, suhuAir - suhuUdara);
+        if (suhuUdara > -900.0f)
+            Serial.printf("  Suhu Udara : %.2f \xb0"
+                          "C  (DS3231, delta Air-Udara=%+.1f\xb0"
+                          "C)\n",
+                          suhuUdara, suhuAir - suhuUdara);
 
-        // Serial.printf("  Turbidity  : %.1f NTU  (V=%.4fV)\n", ntu, vTurb);
+        Serial.printf("  Turbidity  : %.1f NTU  (V=%.4fV)\n", ntu, vTurb);
         Serial.printf("  TDS        : %.0f PPM  (V=%.4fV)\n", ppm, vTds);
-        // Serial.printf("  pH         : %.2f (%s)  (V=%.4fV)\n", ph,
-        //               sensorPH.getPhCategory(), vPh);
+        Serial.printf("  pH         : %.2f (%s)  (V=%.4fV)\n", ph,
+                      sensorPH.getPhCategory(), vPh);
 
         // Hasil Fuzzy Logic
         // printSeparator('-', 34);
@@ -320,10 +320,11 @@ void loop()
         // printSeparator();
 
         // 8. Tampilkan ke LCD 16x2
+
         lcd.clear();
         lcd.setCursor(0, 0);
         lcd.printf("temp = %.2f", suhuAir);
         lcd.setCursor(0, 1);
-        lcd.printf("ppm = %.1f v=%.3f", ppm, vTds);
+        lcd.printf("v=%.3f, ph=%.2f", vPh, ph);
     }
 }

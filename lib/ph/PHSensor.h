@@ -47,9 +47,9 @@ struct PhCalData
     // │  EDIT NILAI DI BAWAH INI SETELAH KALIBRASI              │
     // │  pH = a*V² + b*V + c                                    │
     // └──────────────────────────────────────────────────────────┘
-    float a = 0.0f;    // koefisien V²  (default: tanpa lengkungan)
-    float b = -3.5f;   // koefisien V   (default kasar)
-    float c = 21.34f;  // konstanta     (default kasar untuk 5V supply)
+    float a = 0.4796f;    // koefisien V²  (default: tanpa lengkungan)
+    float b = -9.041f;   // koefisien V   (default kasar)
+    float c = 27.141f;  // konstanta     (default kasar untuk 5V supply)
 };
 
 // ── Class Sensor ──────────────────────────────────────────────────
