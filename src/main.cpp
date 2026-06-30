@@ -36,6 +36,8 @@
 #include "RTC_DS3231_Wrapper.h"
 #include "FuzzyWaterQuality.h"
 #include <LiquidCrystal_I2C.h>
+#include "CloudConfig.h"
+#include "DataLogger.h"
 
 // ── Konfigurasi Pin ───────────────────────────────────────────────
 constexpr uint8_t PIN_DS18B20 = 4; // GPIO4 untuk sensor suhu DS18B20
@@ -62,6 +64,7 @@ WaterTemp sensorSuhu(PIN_DS18B20);  // DS18B20 → GPIO4
 RTC_DS3231_Wrapper rtc;             // DS3231 RTC (I2C 0x68) — waktu + suhu udara
 FuzzyWaterQuality fuzzy;            // Fuzzy Logic Mamdani — kualitas air
 LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD 16x2 I2C (Address 0x27)
+DataLogger dataLogger;              // Firebase + SD Card logger
 
 // ════════════════════════════════════════════════════════════════════
 //  State untuk input Serial
@@ -160,6 +163,9 @@ void setup()
     Serial.printf("  pH        : a=%.6f, b=%.6f, c=%.6f\n",
                   pCal.a, pCal.b, pCal.c);
 
+    // ── Inisialisasi DataLogger (WiFi + SD + Firebase) ────────────
+    dataLogger.begin();
+
     printMenu();
 }
 
@@ -169,6 +175,10 @@ void setup()
 
 uint32_t lastReadTime = 0;
 uint32_t lastRawVoltageTime = 0;
+uint32_t lastUploadTime = 0;
+
+// Data sensor terakhir (untuk upload terpisah dari pembacaan)
+SensorData lastSensorData;
 
 void loop()
 {
@@ -315,16 +325,50 @@ void loop()
                       sensorPH.getPhCategory(), vPh);
 
         // Hasil Fuzzy Logic
-        // printSeparator('-', 34);
-        // Serial.printf("  Kualitas Air: %.1f / 100 [%s]\n", wq.wqi, wq.category);
-        // printSeparator();
+        printSeparator('-', 34);
+        Serial.printf("  Kualitas Air: %.1f / 100 [%s]\n", wq.wqi, wq.category);
 
-        // 8. Tampilkan ke LCD 16x2
+        // Status koneksi
+        Serial.printf("  WiFi: %s | Firebase: %s | SD: %s | Pending: %u\n",
+                      dataLogger.isWiFiConnected() ? "ON" : "OFF",
+                      dataLogger.isFirebaseReady() ? "OK" : "-",
+                      dataLogger.isSDReady() ? "OK" : "-",
+                      dataLogger.getPendingCount());
+        printSeparator();
 
+        // 8. Simpan data terakhir untuk upload
+        if (rtc.isReady())
+            lastSensorData.timestamp = rtc.getTimestamp();
+        else
+            lastSensorData.timestamp = "no-rtc";
+
+        lastSensorData.ph = ph;
+        lastSensorData.tds_ppm = ppm;
+        lastSensorData.turbidity_ntu = ntu;
+        lastSensorData.suhu_air = suhuAir;
+        lastSensorData.suhu_udara = suhuUdara;
+        lastSensorData.wqi = wq.wqi;
+        lastSensorData.kategori = wq.category;
+
+        // 9. Tampilkan ke LCD 16x2
         lcd.clear();
         lcd.setCursor(0, 0);
-        lcd.printf("temp = %.2f", suhuAir);
+        lcd.printf("pH%.1f T%.0f NTU%.0f", ph, ppm, ntu);
         lcd.setCursor(0, 1);
-        lcd.printf("v=%.3f, ph=%.2f", vPh, ph);
+        lcd.printf("WQI:%.0f %s", wq.wqi,
+                   dataLogger.isWiFiConnected() ? "WiFi" : "Offl");
     }
+
+    // ── Upload data ke Firebase (interval terpisah) ───────────────
+    if (state == AppState::NORMAL &&
+        (millis() - lastUploadTime >= UPLOAD_INTERVAL_MS))
+    {
+        lastUploadTime = millis();
+
+        if (lastSensorData.timestamp.length() > 0)
+            dataLogger.log(lastSensorData);
+    }
+
+    // ── Maintain koneksi WiFi ─────────────────────────────────────
+    dataLogger.maintain();
 }
