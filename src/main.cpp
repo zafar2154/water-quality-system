@@ -38,9 +38,12 @@
 #include <LiquidCrystal_I2C.h>
 #include "CloudConfig.h"
 #include "DataLogger.h"
+#include "gps_sensor.h"
 
 // ── Konfigurasi Pin ───────────────────────────────────────────────
-constexpr uint8_t PIN_DS18B20 = 4; // GPIO4 untuk sensor suhu DS18B20
+constexpr uint8_t PIN_DS18B20 = 4;  // GPIO4 untuk sensor suhu DS18B20
+constexpr uint8_t GPS_RX_PIN = 16;  // GPIO16 untuk GPS RX
+constexpr uint8_t GPS_TX_PIN = 17;  // GPIO17 untuk GPS TX
 
 // ── Konfigurasi Interval Pembacaan ───────────────────────────────
 constexpr uint32_t READ_INTERVAL_MS = 2000; // baca setiap 2 detik
@@ -65,6 +68,7 @@ RTC_DS3231_Wrapper rtc;             // DS3231 RTC (I2C 0x68) — waktu + suhu ud
 FuzzyWaterQuality fuzzy;            // Fuzzy Logic Mamdani — kualitas air
 LiquidCrystal_I2C lcd(0x27, 16, 2); // LCD 16x2 I2C (Address 0x27)
 DataLogger dataLogger;              // Firebase + SD Card logger
+GPSSensor gps(GPS_RX_PIN, GPS_TX_PIN); // GPS NEO-M8N (UART1)
 
 // ════════════════════════════════════════════════════════════════════
 //  State untuk input Serial
@@ -148,6 +152,9 @@ void setup()
 
     // ── Inisialisasi sensor suhu air ──────────────────────────────
     sensorSuhu.begin();
+
+    // ── Inisialisasi GPS ─────────────────────────────────────────
+    gps.begin();
 
     // ── Tampilkan koefisien kalibrasi yang aktif ──────────────────
     Serial.println(F("\n[INIT] Koefisien kalibrasi (dari header sensor):"));
@@ -262,6 +269,9 @@ void loop()
         Serial.printf("  Turb=%.4fV \n", vTurb);
     }
 
+    // ── Update GPS (harus dipanggil sesering mungkin) ─────────────
+    gps.update();
+
     // ── Pembacaan sensor periodik ─────────────────────────────────
     if (state == AppState::NORMAL &&
         (millis() - lastReadTime >= READ_INTERVAL_MS))
@@ -328,6 +338,12 @@ void loop()
         printSeparator('-', 34);
         Serial.printf("  Kualitas Air: %.1f / 100 [%s]\n", wq.wqi, wq.category);
 
+        // GPS status
+        Serial.printf("  GPS: %s | Sat: %d | Lat: %.6f | Lon: %.6f\n",
+                      gps.isFixed() ? "FIX" : "NO FIX",
+                      gps.getSatellites(),
+                      gps.getLatitude(), gps.getLongitude());
+
         // Status koneksi
         Serial.printf("  WiFi: %s | Firebase: %s | SD: %s | Pending: %u\n",
                       dataLogger.isWiFiConnected() ? "ON" : "OFF",
@@ -337,18 +353,23 @@ void loop()
         printSeparator();
 
         // 8. Simpan data terakhir untuk upload
+        //    Buat Unix epoch timestamp dari RTC
         if (rtc.isReady())
-            lastSensorData.timestamp = rtc.getTimestamp();
+        {
+            DateTime now = rtc.getDateTime();
+            lastSensorData.timestamp = now.unixtime();
+        }
         else
-            lastSensorData.timestamp = "no-rtc";
+        {
+            lastSensorData.timestamp = millis() / 1000; // fallback
+        }
 
         lastSensorData.ph = ph;
-        lastSensorData.tds_ppm = ppm;
-        lastSensorData.turbidity_ntu = ntu;
-        lastSensorData.suhu_air = suhuAir;
-        lastSensorData.suhu_udara = suhuUdara;
-        lastSensorData.wqi = wq.wqi;
-        lastSensorData.kategori = wq.category;
+        lastSensorData.tds = ppm;
+        lastSensorData.turbidity = ntu;
+        lastSensorData.temperature = suhuAir;
+        lastSensorData.lat = gps.getLatitude();
+        lastSensorData.lon = gps.getLongitude();
 
         // 9. Tampilkan ke LCD 16x2
         lcd.clear();
@@ -365,7 +386,7 @@ void loop()
     {
         lastUploadTime = millis();
 
-        if (lastSensorData.timestamp.length() > 0)
+        if (lastSensorData.timestamp > 0)
             dataLogger.log(lastSensorData);
     }
 
