@@ -51,6 +51,10 @@ constexpr uint32_t READ_INTERVAL_MS = 2000; // baca setiap 2 detik
 // ── Interval tegangan mentah (mode Q) ─────────────────────────────
 constexpr uint32_t RAW_VOLTAGE_INTERVAL_MS = 500; // tampilkan tiap 500ms
 
+// ── Interval LCD cycling ──────────────────────────────────────────
+constexpr uint32_t LCD_CYCLE_MS = 3000; // ganti layar LCD tiap 3 detik
+constexpr uint8_t  LCD_TOTAL_SCREENS = 3;
+
 // ── Jumlah Sampel ADS1115 ─────────────────────────────────────────
 constexpr uint8_t SAMPLES_AVG = 10;   // untuk TDS (rata-rata)
 constexpr uint8_t SAMPLES_MEDIAN = 9; // untuk Turbidity & pH (median, lebih robust)
@@ -135,11 +139,18 @@ void setup()
     lcd.print("Water Quality");
     lcd.setCursor(0, 1);
     lcd.print("System v3.0");
+    delay(1500);
 
     // ── Inisialisasi ADS1115 ──────────────────────────────────────
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Init Sensor...");
+
     if (!modulADS.begin())
     {
         Serial.println(F("[FATAL] ADS1115 tidak ditemukan! Periksa I2C."));
+        lcd.setCursor(0, 1);
+        lcd.print("ADS1115 GAGAL!");
         while (1)
             delay(1000); // halt
     }
@@ -170,8 +181,28 @@ void setup()
     Serial.printf("  pH        : a=%.6f, b=%.6f, c=%.6f\n",
                   pCal.a, pCal.b, pCal.c);
 
+    lcd.setCursor(0, 1);
+    lcd.print("Sensor OK");
+    delay(1000);
+
     // ── Inisialisasi DataLogger (WiFi + SD + Firebase) ────────────
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Connecting...");
+
     dataLogger.begin();
+
+    // ── Tampilkan status akhir di LCD ─────────────────────────────
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.printf("WiFi:%-3s SD:%-3s",
+               dataLogger.isWiFiConnected() ? "OK" : "OFF",
+               dataLogger.isSDReady() ? "OK" : "OFF");
+    lcd.setCursor(0, 1);
+    lcd.printf("Fire:%-3s GPS:%-3s",
+               dataLogger.isFirebaseReady() ? "OK" : "-",
+               gps.isFixed() ? "OK" : "-");
+    delay(2500);
 
     printMenu();
 }
@@ -183,9 +214,16 @@ void setup()
 uint32_t lastReadTime = 0;
 uint32_t lastRawVoltageTime = 0;
 uint32_t lastUploadTime = 0;
+uint32_t lastLcdSwitch = 0;
+uint8_t  lcdScreen = 0;
 
 // Data sensor terakhir (untuk upload terpisah dari pembacaan)
 SensorData lastSensorData;
+
+// Data terakhir untuk tampilan LCD (disimpan supaya LCD bisa cycling)
+float dispPh = 0, dispTds = 0, dispNtu = 0, dispSuhu = 0;
+const char* dispKategori = "---";
+double dispLat = 0, dispLon = 0;
 
 void loop()
 {
@@ -371,13 +409,50 @@ void loop()
         lastSensorData.lat = gps.getLatitude();
         lastSensorData.lon = gps.getLongitude();
 
-        // 9. Tampilkan ke LCD 16x2
+        // 9. Simpan data untuk tampilan LCD cycling
+        dispPh = ph;
+        dispTds = ppm;
+        dispNtu = ntu;
+        dispSuhu = suhuAir;
+        dispKategori = wq.category;
+        dispLat = gps.getLatitude();
+        dispLon = gps.getLongitude();
+    }
+
+    // ── LCD Cycling (bergantian tiap 3 detik) ─────────────────────
+    if (state == AppState::NORMAL &&
+        (millis() - lastLcdSwitch >= LCD_CYCLE_MS))
+    {
+        lastLcdSwitch = millis();
         lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.printf("pH%.1f T%.0f NTU%.0f", ph, ppm, ntu);
-        lcd.setCursor(0, 1);
-        lcd.printf("WQI:%.0f %s", wq.wqi,
-                   dataLogger.isWiFiConnected() ? "WiFi" : "Offl");
+
+        switch (lcdScreen)
+        {
+        case 0: // Layar 1: pH, TDS, Turbidity, Suhu
+            lcd.setCursor(0, 0);
+            lcd.printf("pH:%.1f TDS:%.0f", dispPh, dispTds);
+            lcd.setCursor(0, 1);
+            lcd.printf("NTU:%.1f Tmp:%.1fC", dispNtu, dispSuhu);
+            break;
+
+        case 1: // Layar 2: Kategori Fuzzy + Status
+            lcd.setCursor(0, 0);
+            lcd.printf("Air: %s", dispKategori);
+            lcd.setCursor(0, 1);
+            lcd.printf("WiFi:%-3s SD:%-3s",
+                       dataLogger.isWiFiConnected() ? "ON" : "OFF",
+                       dataLogger.isSDReady() ? "OK" : "-");
+            break;
+
+        case 2: // Layar 3: GPS Lat/Lon
+            lcd.setCursor(0, 0);
+            lcd.printf("Lt:%.6f", dispLat);
+            lcd.setCursor(0, 1);
+            lcd.printf("Ln:%.6f", dispLon);
+            break;
+        }
+
+        lcdScreen = (lcdScreen + 1) % LCD_TOTAL_SCREENS;
     }
 
     // ── Upload data ke Firebase (interval terpisah) ───────────────
